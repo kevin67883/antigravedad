@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Antigravedad</title>
+<style>
+:root{--bg:#14122b;--bar:#3b2f8f;--player:#ffd166;--hit:#ef476f;--text:#e8e6ff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:"Trebuchet MS",Verdana,sans-serif}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;user-select:none;-webkit-user-select:none}
+h1{margin:0;font-size:1.4rem;letter-spacing:.04em}
+#wrap{position:relative;width:min(96vw,760px)}
+canvas{width:100%;height:auto;display:block;border-radius:10px;background:#1c1940;touch-action:manipulation;cursor:pointer}
+#msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;padding:16px}
+#msg b{font-size:1.6rem}
+#msg span{margin-top:6px;opacity:.85}
+p{margin:0;opacity:.8;font-size:.9rem;text-align:center;padding:0 12px}
+</style>
+</head>
+<body>
+<h1>Antigravedad</h1>
+<div id="wrap">
+  <canvas id="c" width="760" height="380" aria-label="Juego: pulsa para invertir la gravedad"></canvas>
+  <div id="msg"><b>Pulsa para empezar</b><span>Espacio, clic o toque: invierte la gravedad</span></div>
+</div>
+<p>Esquiva los bloques rojos cambiando entre el piso y el techo.</p>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),msg=document.getElementById('msg');
+const W=cv.width,H=cv.height,BAR=28,S=34;
+let best=0;
+try{best=+localStorage.getItem('antigrav-best')||0}catch(e){}
+let st='idle',p,obs,speed,timer,score,scoreF,last;
+function reset(){
+  p={x:90,y:H-BAR-S,vy:0,g:1};
+  obs=[];speed=300;timer=0.8;score=0;scoreF=0;
+}
+function flip(){
+  if(st==='idle'||st==='over'){
+    if(st==='over'&&performance.now()-last<350)return;
+    reset();st='play';msg.style.display='none';last=performance.now();return;
+  }
+  p.g*=-1;
+}
+function die(){
+  st='over';last=performance.now();
+  if(score>best){best=score;try{localStorage.setItem('antigrav-best',best)}catch(e){}}
+  msg.innerHTML='<b>Puntos: '+score+'</b><span>Mejor: '+best+'. Pulsa para reintentar</span>';
+  msg.style.display='flex';
+}
+function update(dt){
+  p.vy+=p.g*2600*dt;p.y+=p.vy*dt;
+  const top=BAR,bot=H-BAR-S;
+  if(p.y>bot){p.y=bot;p.vy=0}
+  if(p.y<top){p.y=top;p.vy=0}
+  speed+=6*dt;scoreF+=dt*speed/20;score=Math.floor(scoreF);
+  timer-=dt;
+  if(timer<=0){
+    const h=70+Math.random()*90,onFloor=Math.random()<.5;
+    obs.push({x:W+10,w:30+Math.random()*30,h,y:onFloor?H-BAR-h:BAR});
+    timer=0.7+Math.random()*0.7-Math.min(speed-300,300)/1000;
+  }
+  for(const o of obs){
+    o.x-=speed*dt;
+    if(p.x+S-4>o.x&&p.x+4<o.x+o.w&&p.y+S-4>o.y&&p.y+4<o.y+o.h)die();
+  }
+  obs=obs.filter(o=>o.x+o.w>-10);
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#3b2f8f';ctx.fillRect(0,0,W,BAR);ctx.fillRect(0,H-BAR,W,BAR);
+  ctx.fillStyle='#ef476f';
+  for(const o of obs)ctx.fillRect(o.x,o.y,o.w,o.h);
+  if(p){
+    ctx.fillStyle='#ffd166';ctx.fillRect(p.x,p.y,S,S);
+    ctx.fillStyle='#14122b';
+    const ey=p.g>0?p.y+8:p.y+S-16;
+    ctx.fillRect(p.x+8,ey,6,8);ctx.fillRect(p.x+S-14,ey,6,8);
+  }
+  ctx.fillStyle='#e8e6ff';ctx.font='bold 18px Trebuchet MS, Verdana, sans-serif';
+  ctx.textAlign='left';ctx.fillText('Puntos '+(score||0),16,H/2-4);
+  ctx.textAlign='right';ctx.fillText('Mejor '+best,W-16,H/2-4);
+}
+let prev=performance.now();
+function loop(t){
+  const dt=Math.min((t-prev)/1000,0.033);prev=t;
+  if(st==='play')update(dt);
+  draw();requestAnimationFrame(loop);
+}
+reset();requestAnimationFrame(loop);
+addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'||e.code==='ArrowDown'){e.preventDefault();flip()}});
+cv.addEventListener('pointerdown',e=>{e.preventDefault();flip()});
+</script>
+</body>
+</html>
